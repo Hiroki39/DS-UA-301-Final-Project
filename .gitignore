@@ -1,8 +1,7 @@
-object_detection_hw.ipynb
 coco_synthetic/
 train2014/
 *.pptx
 *.docx
 __pycache__/
 .DS_Store
-models/model.pth
+models/

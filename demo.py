@@ -11,7 +11,8 @@ from extras.boxes import nms
 
 COCO_DIR = "train2014"
 SYNTHETIC_DIR = "coco_synthetic"
-TEST_FILE = "test_filter.txt"
+MODEL_DIR = "models"
+TEST_FILE = "train_filter.txt"
 
 
 class ImageManipDataset(Dataset):
@@ -171,7 +172,7 @@ def visPred(model, sample):
 
         max_probs, _ = torch.max(curr_probs, axis=0)
 
-        selected_boxes = (curr_pred != 0) & (max_probs > 0.7)
+        selected_boxes = (curr_pred != 0) & (max_probs > 0.8)
 
         ex_boxes = torch.cat(
             (left_top_x, left_top_y, right_bottom_x, right_bottom_y), dim=1)
@@ -228,7 +229,7 @@ if __name__ == "__main__":
 
     lr = '0.1'
     if choice in 'aA':
-        lr = '1'
+        lr = '1.0'
     elif choice in 'cC':
         lr = '0.01'
 
@@ -243,18 +244,20 @@ if __name__ == "__main__":
     if pretrained:
         model_filename += '_pretrained'
 
-    model_filename = 'models/model.pth'
-
     transformed_test = ImageManipDataset(
         txt_file=TEST_FILE, transform=coco_transform, test_mode=False)
-    # test_loader = DataLoader(transformed_test, batch_size=4,
-    #                          shuffle=False, num_workers=4)
 
-    # data_dict = iter(test_loader).next()
-    data_dict = transformed_test[:4]
+    test_loader = DataLoader(transformed_test, batch_size=4,
+                             shuffle=False, num_workers=4)
+
+    data_dict = iter(test_loader).next()
     visDet(data_dict['image'][:4], data_dict['bbox'][:4],
            data_dict["authentic"][:4].reshape(-1, 1))
 
+    model_filename = os.path.join(os.path.join(
+        MODEL_DIR, model_filename), model_filename)
+
     model = ManipDetectionModel(base=int(base))
-    model.load_state_dict(torch.load(model_filename, map_location='cpu'))
+    model.load_state_dict(torch.load(
+        model_filename, map_location="cpu"))
     visPred(model, data_dict['image'].to(dtype=torch.float))

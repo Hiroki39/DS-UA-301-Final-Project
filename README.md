@@ -1,6 +1,6 @@
 # DS-UA 301 Final Project
 
-This project achieves object manipulation detection through R-CNN.
+This project achieves object manipulation detection through R-CNN. It is simple, but most importantly it is implemented from scratch.
 
 The input image would be reshaped to $128 \times 128$ and serves as the input to a ResNet encoder. The feature map after the third set of layers in the ResNet encoder ($8 \times 8$) would be extracted, an 3x3 convolutional layer on top of it. Then, two sibling 1x
 1 convolutional layers for classification and regression respectively would be applied to generate the final output.
@@ -26,7 +26,9 @@ After download these two datasets, unzip and put them under the root directory o
 
 `test_filter.txt` and `train_filter.txt` are two annotation files indicating the filenames of images for the training/testing set. For each image file, the corresponding bounding box and the label indicating whether the object in the bounding box is original or tampered.
 
-Before running the Jupyter notebook, change the value of `COCO_DIR`, `SYNTHETIC_DIR`, `TRAIN_FILE`, and `TEST_FILE` in the second cell to make sure they point to the correct datasets/annotation files. Change these values in `demo.py` and `remove.py` as well. Specifically, to make sure raytune could run properly, it is recommended to use absolute path for `COCO_DIR` and `SYNTHETIC_DIR` in the Jupyter notebook.
+Before running the Jupyter notebook, change the value of `COCO_DIR`, `SYNTHETIC_DIR`, `MODEL_DIR`, `TRAIN_FILE`, and `TEST_FILE` in the second cell to make sure they point to the correct datasets/annotation files. Change these values in `demo.py` and `remove.py` as well. Specifically, to make sure raytune could run properly, it is recommended to use absolute path for `COCO_DIR`, `SYNTHETIC_DIR`, and `MODEL_DIR` in the Jupyter notebook.
+
+If you cannot run `raytune`, you could instead run another cell which manually implements the grid search. If you use this cell, the performance metrics could be found in an output file called `performance.json`.
 
 After finish running the Jupyter notebook, there will be a list of `.pth` model files under the `models` folder. Since hyperband scheduler is used, the models that are stopped early may perform badly. Therefore, make sure to check the result files or output of raytune to remember the best set of hyperparameter.
 

@@ -1,0 +1,6 @@
+models/model_resnet50_lr0.01 filter=lfs diff=lfs merge=lfs -text
+models/model_resnet50_lr0.01_pretrained filter=lfs diff=lfs merge=lfs -text
+models/model_resnet50_lr0.1 filter=lfs diff=lfs merge=lfs -text
+models/model_resnet50_lr0.1_pretrained filter=lfs diff=lfs merge=lfs -text
+models/model_resnet50_lr1.0 filter=lfs diff=lfs merge=lfs -text
+models/model_resnet50_lr1.0_pretrained filter=lfs diff=lfs merge=lfs -text
