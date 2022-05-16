@@ -4,4 +4,3 @@ train2014/
 *.docx
 __pycache__/
 .DS_Store
-models/
