@@ -13,7 +13,7 @@ For more details, refer to the presentation slide attached in this repository.
 
 ## About this repository
 
-The main file of this repository is `DS-UA 301 Final Project.ipynb`. By running this jupyter cell by cell, one could instantiate the dataset, model, loss function and everything needed to train the model. Then, a ray tune task will be started to find the best set of hyperparameters for the model.
+The main file of this repository is `DS-UA 301 Final Project.ipynb`. By running this jupyter notebook cell by cell, one could instantiate the dataset, model, loss function and everything needed to train the model. Then, a ray tune task will be started to find the best set of hyperparameters for the model.
 
 The datasets that will be used are not included in the repository so you need to download them. The datasets needed are:
 
@@ -28,7 +28,9 @@ Before running the Jupyter notebook, change the value of `COCO_DIR`, `SYNTHETIC_
 
 If you cannot run `raytune`, you could instead run another cell which manually implements the grid search. If you use this cell, the performance metrics could be found in an output file called `performance.json`.
 
-After finish running the Jupyter notebook, there will be a list of `.pth` model files under the `models` folder. Since hyperband scheduler is used, the models that are stopped early may perform badly. Therefore, make sure to check the result files or output of raytune to remember the best set of hyperparameter.
+Also, if you don't want to run the Jupyter notebook cell by cell, you could instead run the equivalent `DS-UA 301 Final Project.py`. You could even use the command `nohup python3 -u "DS-UA 301 Final Project.py" &` to run it in the background. You could always monitor the training progress in `nohup.out`.
+
+After finish running the Jupyter notebook or the equivalent python script, there will be a list of `.pth` model files under the `models` folder. Since hyperband scheduler is used, the models that are stopped early may perform badly. Therefore, make sure to check the result files or output of raytune to remember the best set of hyperparameter.
 
 Then, run `demo.py` in the terminal. Follow the prompt and enter the desired parameters. This script first shows the ground truth bounding box of some sample image, and then visualizes the model prediction. You could get a sense of how this model performs based on the comparison between the ground truth and the model output. Note that red box means there is authentic object in the box, blue box means that there is tampered object in the box.
 
