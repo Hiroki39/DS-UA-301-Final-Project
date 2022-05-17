@@ -1,13 +1,16 @@
 import os
 import torch
 import pandas as pd
+import matplotlib
 from skimage import io, transform
 import torch.nn.functional as F
-from torchvision import utils, transforms
+from torchvision import transforms
 from extras.image_manip import ManipDetectionModel
 from torch.utils.data import DataLoader, Dataset
 from extras.util import visDet
 from extras.boxes import nms
+
+matplotlib.rcParams['figure.figsize'] = (10.0, 10.0)
 
 COCO_DIR = "train2014"
 SYNTHETIC_DIR = "coco_synthetic"
@@ -16,7 +19,7 @@ TEST_FILE = "train_filter.txt"
 
 
 class ImageManipDataset(Dataset):
-    """Face Landmarks dataset."""
+    """Image Manipulation Dataset"""
 
     def __init__(self, txt_file, transform=None, test_mode=False):
         """
@@ -29,7 +32,7 @@ class ImageManipDataset(Dataset):
         self.file_info_frame = pd.read_csv(txt_file, delimiter=" ", header=None)
         if test_mode:
             self.file_info_frame = pd.read_csv(
-                txt_file, delimiter=" ", header=None).head(2048)
+                txt_file, delimiter=" ", header=None).head(4)
         self.transform = transform
 
     def __len__(self):
@@ -151,6 +154,7 @@ def visPred(model, sample):
     preds = torch.argmax(probs, axis=1)
     boxes = []
     select_preds = []
+
     for i in range(sample.shape[0]):
         curr_pred = preds[i, :]
         curr_probs = probs[i, :]
@@ -189,8 +193,17 @@ def visPred(model, sample):
         curr_pred = curr_pred[select_result]
 
         boxes.append(ex_boxes.detach())
+
         # convert to 1 for auth 0 for tampered
         select_preds.append(curr_pred.detach() - 1)
+
+        # max_idx = torch.argmax(max_probs)
+
+        # ex_box = ex_boxes[max_idx, :].detach()
+        # final_pred = curr_pred[max_idx] - 1
+
+        # boxes.append([ex_box])
+        # select_preds.append([final_pred])
 
     visDet(sample, boxes, select_preds)
 
@@ -245,7 +258,7 @@ if __name__ == "__main__":
         model_filename += '_pretrained'
 
     transformed_test = ImageManipDataset(
-        txt_file=TEST_FILE, transform=coco_transform, test_mode=False)
+        txt_file=TEST_FILE, transform=coco_transform, test_mode=True)
 
     test_loader = DataLoader(transformed_test, batch_size=4,
                              shuffle=False, num_workers=4)
@@ -254,8 +267,7 @@ if __name__ == "__main__":
     visDet(data_dict['image'][:4], data_dict['bbox'][:4],
            data_dict["authentic"][:4].reshape(-1, 1))
 
-    model_filename = os.path.join(os.path.join(
-        MODEL_DIR, model_filename), model_filename)
+    model_filename = os.path.join(MODEL_DIR, model_filename)
 
     model = ManipDetectionModel(base=int(base))
     model.load_state_dict(torch.load(

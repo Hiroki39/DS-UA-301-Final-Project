@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+# In[4]:
 
 
 import os
@@ -34,18 +34,19 @@ warnings.filterwarnings("ignore")
 matplotlib.rcParams['figure.figsize'] = (10.0, 10.0)
 
 
-# In[2]:
+# In[5]:
 
 
 # to make sure Raytune could work properly it is recommended to use absolute path
 COCO_DIR = "/scratch/hz2212/Final Project/train2014"
 SYNTHETIC_DIR = "/scratch/hz2212/Final Project/coco_synthetic"
+MODEL_DIR = "/scratch/hz2212/Final Project/models"
 
 TRAIN_FILE = "train_filter.txt"
 TEST_FILE = "test_filter.txt"
 
 
-# In[3]:
+# In[6]:
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -53,29 +54,36 @@ if device == 'cuda':
     cudnn.benchmark = True
 
 
-# In[4]:
+# In[7]:
 
 
 train_file_info_frame = pd.read_csv(TRAIN_FILE, delimiter=" ", header=None)
 train_file_info_frame
 
 
-# In[5]:
+# In[8]:
 
 
 test_file_info_frame = pd.read_csv(TEST_FILE, delimiter=" ", header=None)
 test_file_info_frame
 
 
-# In[6]:
+# In[9]:
 
 
-def get_image(filename):
-    imdir = SYNTHETIC_DIR if filename[:2] == "Tp" else COCO_DIR
-    return io.imread(os.path.join(imdir, filename))
+def get_image(filenames):
+    if isinstance(filenames, str):
+        imdir = SYNTHETIC_DIR if filenames[:2] == "Tp" else COCO_DIR
+        return io.imread(os.path.join(imdir, filenames))
+    else:
+        paths = []
+        for filename in filenames:
+            imdir = SYNTHETIC_DIR if filename[:2] == "Tp" else COCO_DIR
+            paths.append(os.path.join(imdir, filename))
+        return io.imread_collection(paths)
 
 
-# In[7]:
+# In[10]:
 
 
 class ImageManipDataset(Dataset):
@@ -93,21 +101,39 @@ class ImageManipDataset(Dataset):
             self.file_info_frame = pd.read_csv(txt_file, delimiter=" ", header=None).head(2048)
         self.transform = transform
         
-        self.sample = []
+        self.images = get_image(self.file_info_frame.iloc[:, 0].values)
+        self.bboxs = self.file_info_frame.iloc[:, 1:5].values
+        self.is_authentics = (self.file_info_frame.iloc[:, 5] == "authentic").astype(int)
+        
+        images = []
         
         for idx in range(len(self.file_info_frame)):
-            img = get_image(self.file_info_frame.iloc[idx, 0])
-            bbox = self.file_info_frame.iloc[idx, 1:5].values
-            is_authentic = 1 if self.file_info_frame.iloc[idx, 5] == "authentic" else 0
-            
-            sample = {'image': img, 'bbox': bbox.reshape(1, -1)}
+            sample = {'image': self.images[idx], 'bbox': self.bboxs[idx].reshape(1, -1)}
 
             if self.transform:
                 sample = self.transform(sample)
-
-            sample["authentic"] = is_authentic
+            
+            images.append(sample['image'])
+            self.bboxs[idx] = sample['bbox']
         
-            self.sample.append(sample)
+        self.images = images
+            
+
+#         self.sample = []
+        
+#         for idx in range(len(self.file_info_frame)):
+#             img = get_image(self.file_info_frame.iloc[idx, 0])
+#             bbox = self.file_info_frame.iloc[idx, 1:5].values
+#             is_authentic = 1 if self.file_info_frame.iloc[idx, 5] == "authentic" else 0
+            
+#             sample = {'image': img, 'bbox': bbox.reshape(1, -1)}
+
+#             if self.transform:
+#                 sample = self.transform(sample)
+
+#             sample["authentic"] = is_authentic
+        
+#             self.sample.append(sample)
             
     def __len__(self):
         return len(self.file_info_frame)
@@ -116,7 +142,11 @@ class ImageManipDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        return self.sample[idx]
+        return {
+            'image': self.images[idx],
+            'bbox': self.bboxs[idx],
+            'authentic': self.is_authentics[idx]
+        }
 
 # class ImageManipDataset(Dataset):
 
@@ -204,7 +234,7 @@ class ToTensor(object):
                 'bbox': torch.from_numpy(bbox)}
 
 
-# In[8]:
+# In[11]:
 
 
 coco_transform = transforms.Compose([
@@ -213,10 +243,13 @@ coco_transform = transforms.Compose([
 ])
 
 
-# In[9]:
+# In[ ]:
 
 
-transformed_train = ImageManipDataset(txt_file=TRAIN_FILE, transform=coco_transform, test_mode=False)
+transformed_train = ImageManipDataset(txt_file=TRAIN_FILE,
+                                      transform=coco_transform, test_mode=False)
+transformed_test = ImageManipDataset(txt_file=TEST_FILE,
+                                     transform=coco_transform, test_mode=False)
 
 
 # In[ ]:
@@ -263,8 +296,11 @@ def get_gt_boxes():
                                        bottom_right_x, bottom_right_y])
 
 
-
     return gt_boxes
+
+
+# In[ ]:
+
 
 gt_boxes = get_gt_boxes().to(device)
 
@@ -332,19 +368,15 @@ def get_targets(sample, target, is_auth):
 
 
 def class_loss(out_pred, class_targets):
-    # return class loss
-    #     print(out_pred.shape)
-    #     print(class_targets.shape)
 
     class_targets_copy = class_targets.to(device)
     criterion = nn.CrossEntropyLoss(ignore_index=-1, size_average=True).to(device)
     class_targets_copy = class_targets_copy.squeeze()
     
-    keep_idx = torch.cartesian_prod(torch.arange(class_targets.shape[0]), torch.randperm(class_targets.shape[1])[:80])
+    # downsample negative samples (pick 20 from 192)
+    keep_idx = torch.cartesian_prod(torch.arange(class_targets.shape[0]), torch.randperm(class_targets.shape[1])[:20])
     keep_idx = torch.cat((keep_idx.to(device), torch.argwhere(class_targets_copy > 0)))
 
-    #     out_pred[class_targets_copy < 0] = 0
-    #     class_targets_copy[class_targets_copy < 0] = 0
     modified_class_targets = (torch.ones_like(class_targets) * -1)
     modified_class_targets[keep_idx[:, 0], keep_idx[:, 1]] = class_targets_copy[keep_idx[:, 0], keep_idx[:, 1]] 
     return criterion(out_pred, modified_class_targets.to(device))
@@ -368,7 +400,7 @@ def bbox_loss(out_bbox, box_targets, class_targets):
 # Training Function.
 def train_manip(config):
     
-    epochs=10
+    epochs=40
     
     model = ManipDetectionModel(base=config['base'], pretrained=config['pretrained']).to(device)
     model.encoder.to(device)
@@ -378,23 +410,28 @@ def train_manip(config):
     
     optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
     train_loader = DataLoader(transformed_train, batch_size=256, shuffle=True, pin_memory=True, num_workers=4)
+    test_loader = DataLoader(transformed_test, batch_size=256, shuffle=False, pin_memory=True, num_workers=4)
     
-#     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
     
     model_filename = "model_resnet" + str(config['base']) + "_lr" + str(config['lr'])
     if config['pretrained']:
         model_filename += '_pretrained'
     
-    avg_b_losses = []
-    avg_c_losses = []
+    avg_b_train_losses = []
+    avg_c_train_losses = []
+    avg_b_test_losses = []
+    avg_c_test_losses = []
     
     for i in range(epochs):
         
-        total_loss = 0
-        b_loss = 0
-        c_loss = 0
+        total_train_loss = 0
+        b_train_loss = 0
+        c_train_loss = 0
 
-        with tqdm(train_loader) as tepoch:
+        model.train()
+        
+        with tqdm(train_loader, desc='Train Progress', unit="batch") as tepoch:
             for data_dict in tepoch:
                 ims = data_dict["image"].float().to(device)
                 class_targets, box_targets = get_targets(data_dict["image"].to(device), data_dict["bbox"].to(device), data_dict["authentic"].to(device))
@@ -410,26 +447,57 @@ def train_manip(config):
                     loss.backward()
                     optimizer.step()
 
-                total_loss += loss.item()
-                c_loss += loss_cls.item()
-                b_loss += loss_bbox.item()
+                total_train_loss += loss.item()
+                c_train_loss += loss_cls.item()
+                b_train_loss += loss_bbox.item()
 
-        avg_c_loss = float(c_loss / len(train_loader))
-        avg_b_loss = float(b_loss / len(train_loader))
+        avg_c_train_loss = float(c_train_loss / len(train_loader))
+        avg_b_train_loss = float(b_train_loss / len(train_loader))
         
-        avg_b_losses.append(avg_b_loss)
-        avg_c_losses.append(avg_c_loss)
+        avg_c_train_losses.append(avg_c_train_loss)
+        avg_b_train_losses.append(avg_b_train_loss)
+        
+        total_test_loss = 0
+        b_test_loss = 0
+        c_test_loss = 0
+        
+        with torch.no_grad():
+            
+            model.eval()
 
-        print('Trained Epoch: {} | Avg Classification Loss: {}, Bounding Loss: {}\n'.format(
-            i, avg_c_loss, avg_b_loss))
-        
-    #         scheduler.step()
+            with tqdm(test_loader, desc='Test Progress', unit="batch") as tepoch:
+                
+                for data_dict in tepoch:
+                    ims = data_dict["image"].float().to(device)
+                    class_targets, box_targets = get_targets(data_dict["image"].to(device), data_dict["bbox"].to(device), data_dict["authentic"].to(device))
+                    out_pred, out_box = model(ims)
+
+                    loss_cls = class_loss(out_pred, class_targets.squeeze(2))
+                    loss_bbox = bbox_loss(out_box, box_targets, class_targets)
+
+                    loss = loss_cls + loss_bbox
+
+                    total_test_loss += loss.item()
+                    c_test_loss += loss_cls.item()
+                    b_test_loss += loss_bbox.item()
+                    
+                avg_c_test_loss = float(c_test_loss / len(test_loader))
+                avg_b_test_loss = float(b_test_loss / len(test_loader))
+
+                avg_b_test_losses.append(avg_b_test_loss)
+                avg_c_test_losses.append(avg_c_test_loss)
+
+        scheduler.step()
+
+        print('Trained Epoch: {} | Avg Classification Train Loss: {}, Bounding Train Loss: {}, Classification Test Loss: {}, Bounding Test Loss: {}\n'.format(
+            i, avg_c_train_loss, avg_b_train_loss, avg_c_test_loss, avg_b_test_loss))
+
     if device == 'cuda' and torch.cuda.device_count() > 1:
-        torch.save(model.module.state_dict(), "/scratch/hz2212/Final Project/models/" + model_filename)
+        torch.save(model.module.state_dict(), os.path.join(MODEL_DIR, model_filename))
     else:
-        torch.save(model.state_dict(), "/scratch/hz2212/Final Project/models/" + model_filename)
+        torch.save(model.state_dict(), os.path.join(MODEL_DIR, model_filename))
     
-    return avg_b_losses, avg_c_losses
+    return avg_b_train_losses, avg_c_train_losses, avg_b_test_losses, avg_c_test_losses
     
 
 
@@ -442,7 +510,13 @@ for base in [18, 34, 50]:
     for lr in [0.01, 0.1, 1.0]:
         for pretrained in [True, False]:
             config = {"base": base, "lr": lr, "pretrained": pretrained}
-            loss_dict[(base, lr, pretrained)] = train_manip(config)
+            reg_train_losses, clf_train_losses, reg_test_losses, clf_test_losses = train_manip(config)
+            loss_dict[str(base) + '_' + str(lr) + '_' + str(pretrained)] = {
+                'reg_train_losses': reg_train_losses,
+                'clf_train_losses': clf_train_losses,
+                'reg_test_losses': reg_test_losses,
+                'clf_test_losses': clf_test_losses
+            }
 
 
 # In[2]:
@@ -487,24 +561,4 @@ for key in loss_dict:
 #     verbose=1,
 #     scheduler=hyperband_scheduler
 # )
-
-
-# In[ ]:
-
-
-# fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-# ax1.plot(train_clf_losses, label="Classification Loss")
-# ax1.set_xticks(np.arange(0, epochs, 1))
-# ax1.set_xticklabels(np.arange(1, epochs + 1, 1))
-# ax1.set_xlabel("Epoch")
-# ax1.set_ylabel("Loss")
-# ax1.legend()
-# ax2.plot(train_reg_losses, label="Regression Loss", c="orange")
-# ax2.set_xticks(np.arange(0, epochs, 1))
-# ax2.set_xticklabels(np.arange(1, epochs + 1, 1))
-# ax2.set_xlabel("Epoch")
-# ax2.set_ylabel("Loss")
-# ax2.legend()
-# plt.tight_layout()
-# plt.show()
 

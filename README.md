@@ -2,7 +2,7 @@
 
 This project achieves object manipulation detection through R-CNN. It is simple, but most importantly it is implemented from scratch.
 
-The input image would be reshaped to $128 \times 128$ and serves as the input to a ResNet encoder. The feature map after the third set of layers in the ResNet encoder ($8 \times 8$) would be extracted, an 3x3 convolutional layer on top of it. Then, two sibling 1x
+The input image would be reshaped to 128x128 and serves as the input to a ResNet encoder. The feature map after the third set of layers in the ResNet encoder (8x8) would be extracted, an 3x3 convolutional layer on top of it. Then, two sibling 1x
 1 convolutional layers for classification and regression respectively would be applied to generate the final output.
 
 The cross-entropy loss is applied on the classification output, while smooth-l1 loss is applied on the regression output.
@@ -12,8 +12,6 @@ The cross-entropy loss is applied on the classification output, while smooth-l1 
 For more details, refer to the presentation slide attached in this repository.
 
 ## About this repository
-
----
 
 The main file of this repository is `DS-UA 301 Final Project.ipynb`. By running this jupyter cell by cell, one could instantiate the dataset, model, loss function and everything needed to train the model. Then, a ray tune task will be started to find the best set of hyperparameters for the model.
 
@@ -38,8 +36,20 @@ There are also multiple helper files: run `remove.py` if you want to delete unus
 
 ## Results
 
----
-
 First of all, during the training phase, both the loss from regression head and classification head decreases steadily, which indicates that our model successfully captures the relationship between image features and bounding boxes. Below is a typical loss curve for the models in this repository.
 
 ![Loss Curve](/imgs/loss_curve.png)
+
+### Charts
+
+### Prediction Visualization
+
+The following is the ground truth bounding box of some sample images
+
+![Ground Truth](/imgs/ground_truth.png)
+
+Then this is the prediction of our model (`base=resnet34 init_lr=0.1 pretrained_base=True`)
+
+![Prediction](/imgs/prediction.png)
+
+We could observe that our model get the correct prediction, and the bounding boxes it produces basically covers the correct part of the image. However, the prediction is still quite messy, which is partly due to the fact that the IoU threshold in the non-maximum-suppression stage may need to be adjusted. If we assume that there will only be one tampered/authentic image in the image, then we could, instead of using non-maximum-suppression, simply choose the bounding box with maximum prediction probability for authentic image and tampered image to get one bounding box.
