@@ -98,43 +98,47 @@ class ImageManipDataset(Dataset):
         """
         self.file_info_frame = pd.read_csv(txt_file, delimiter=" ", header=None)
         if test_mode:
-            self.file_info_frame = pd.read_csv(txt_file, delimiter=" ", header=None).head(2048)
+            self.file_info_frame = pd.read_csv(
+                txt_file, delimiter=" ", header=None).head(2048)
         self.transform = transform
-        
+
         self.images = get_image(self.file_info_frame.iloc[:, 0].values)
         self.bboxs = self.file_info_frame.iloc[:, 1:5].values
-        self.is_authentics = (self.file_info_frame.iloc[:, 5] == "authentic").astype(int)
-        
+        self.is_authentics = (
+            self.file_info_frame.iloc[:, 5] == "authentic").astype(int)
+
         images = []
-        
+
         for idx in range(len(self.file_info_frame)):
-            sample = {'image': self.images[idx], 'bbox': self.bboxs[idx].reshape(1, -1)}
+            sample = {'image': self.images[idx],
+                      'bbox': self.bboxs[idx].reshape(1, -1)}
 
             if self.transform:
                 sample = self.transform(sample)
-            
+
             images.append(sample['image'])
             self.bboxs[idx] = sample['bbox']
-        
+
         self.images = images
-            
+
 
 #         self.sample = []
-        
+
 #         for idx in range(len(self.file_info_frame)):
 #             img = get_image(self.file_info_frame.iloc[idx, 0])
 #             bbox = self.file_info_frame.iloc[idx, 1:5].values
 #             is_authentic = 1 if self.file_info_frame.iloc[idx, 5] == "authentic" else 0
-            
+
 #             sample = {'image': img, 'bbox': bbox.reshape(1, -1)}
 
 #             if self.transform:
 #                 sample = self.transform(sample)
 
 #             sample["authentic"] = is_authentic
-        
+
 #             self.sample.append(sample)
-            
+
+
     def __len__(self):
         return len(self.file_info_frame)
 
@@ -163,7 +167,7 @@ class ImageManipDataset(Dataset):
 #             self.file_info_frame = pd.read_csv(txt_file, delimiter=" ", header=None).head(2048)
 #         self.transform = transform
 
-    
+
 #     def __len__(self):
 #         return len(self.file_info_frame)
 
@@ -178,7 +182,7 @@ class ImageManipDataset(Dataset):
 
 #         if self.transform:
 #             sample = self.transform(sample)
-        
+
 #         sample["authentic"] = is_authentic
 
 #         return sample
@@ -215,7 +219,8 @@ class Rescale(object):
 
         # h and w are swapped for landmarks because for images,
         # x and y axes are axis 1 and 0 respectively
-        bboxs = (bboxs * [new_w / w, new_h / h, new_w / w, new_h / h]).astype(float)
+        bboxs = (bboxs * [new_w / w, new_h / h,
+                 new_w / w, new_h / h]).astype(float)
 
         return {'image': img, 'bbox': bboxs}
 
@@ -271,12 +276,13 @@ def get_gt_boxes():
 
     Return this result as a numpy array of size [192,4]
     """
-    stride = 16 # The stride of the final feature map is 16 (the model compresses the image from 128 x 128 to 8 x 8)
-    map_sz = 128 # this is the length of height/width of the image
+    stride = 16  # The stride of the final feature map is 16 (the model compresses the image from 128 x 128 to 8 x 8)
+    map_sz = 128  # this is the length of height/width of the image
 
-    scales = torch.tensor([10,20,30,40,50,60,70,80,90,100])
-    ratios = torch.tensor([[1,1], [0.7, 1.4], [1.4, 0.7], [0.8, 1.2], [1.2, 0.8], [0.6, 1.8], [1.8, 0.6]]).view(1, 14)
-    
+    scales = torch.tensor([10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+    ratios = torch.tensor([[1, 1], [0.7, 1.4], [1.4, 0.7], [0.8, 1.2], [
+                          1.2, 0.8], [0.6, 1.8], [1.8, 0.6]]).view(1, 14)
+
     half_stride = int(stride / 2)
     num_grids = int((map_sz / stride) ** 2)
     boxes_size = (ratios.T * scales).T.reshape(-1, 2)
@@ -292,9 +298,8 @@ def get_gt_boxes():
         top_left_y = center_y - (boxes_size[box_index, 1] / 2)
         bottom_right_x = center_x + (boxes_size[box_index, 0] / 2)
         bottom_right_y = center_y + (boxes_size[box_index, 1] / 2)
-        gt_boxes[i, :] = torch.tensor([top_left_x, top_left_y, 
+        gt_boxes[i, :] = torch.tensor([top_left_x, top_left_y,
                                        bottom_right_x, bottom_right_y])
-
 
     return gt_boxes
 
@@ -354,7 +359,8 @@ def get_targets(sample, target, is_auth):
     final_box_offsets = []
     for s, t, a in zip(sample, target, is_auth):
         bboxes = t.float().reshape(1, -1).to(device)
-        class_targets, box_offsets = get_bbox_gt(bboxes, gt_boxes, a, image_size=128)
+        class_targets, box_offsets = get_bbox_gt(
+            bboxes, gt_boxes, a, image_size=128)
         final_cls_targets.append(class_targets)
         final_box_offsets.append(box_offsets)
 
@@ -370,15 +376,19 @@ def get_targets(sample, target, is_auth):
 def class_loss(out_pred, class_targets):
 
     class_targets_copy = class_targets.to(device)
-    criterion = nn.CrossEntropyLoss(ignore_index=-1, size_average=True).to(device)
+    criterion = nn.CrossEntropyLoss(
+        ignore_index=-1, size_average=True).to(device)
     class_targets_copy = class_targets_copy.squeeze()
-    
+
     # downsample negative samples (pick 20 from 192)
-    keep_idx = torch.cartesian_prod(torch.arange(class_targets.shape[0]), torch.randperm(class_targets.shape[1])[:20])
-    keep_idx = torch.cat((keep_idx.to(device), torch.argwhere(class_targets_copy > 0)))
+    keep_idx = torch.cartesian_prod(torch.arange(
+        class_targets.shape[0]), torch.randperm(class_targets.shape[1])[:20])
+    keep_idx = torch.cat(
+        (keep_idx.to(device), torch.argwhere(class_targets_copy > 0)))
 
     modified_class_targets = (torch.ones_like(class_targets) * -1)
-    modified_class_targets[keep_idx[:, 0], keep_idx[:, 1]] = class_targets_copy[keep_idx[:, 0], keep_idx[:, 1]] 
+    modified_class_targets[keep_idx[:, 0], keep_idx[:, 1]
+                           ] = class_targets_copy[keep_idx[:, 0], keep_idx[:, 1]]
     return criterion(out_pred, modified_class_targets.to(device))
 
 
@@ -399,42 +409,49 @@ def bbox_loss(out_bbox, box_targets, class_targets):
 
 # Training Function.
 def train_manip(config):
-    
-    epochs=40
-    
-    model = ManipDetectionModel(base=config['base'], pretrained=config['pretrained']).to(device)
+
+    epochs = 40
+
+    model = ManipDetectionModel(
+        base=config['base'], pretrained=config['pretrained']).to(device)
     model.encoder.to(device)
-    
+
     if device == 'cuda' and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
-    
-    optimizer = torch.optim.SGD(model.parameters(), lr=config['lr'], momentum=0.9)
-    train_loader = DataLoader(transformed_train, batch_size=256, shuffle=True, pin_memory=True, num_workers=4)
-    test_loader = DataLoader(transformed_test, batch_size=256, shuffle=False, pin_memory=True, num_workers=4)
-    
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
-    
-    model_filename = "model_resnet" + str(config['base']) + "_lr" + str(config['lr'])
+
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=config['lr'], momentum=0.9)
+    train_loader = DataLoader(
+        transformed_train, batch_size=256, shuffle=True, pin_memory=True, num_workers=4)
+    test_loader = DataLoader(
+        transformed_test, batch_size=256, shuffle=False, pin_memory=True, num_workers=4)
+
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=15, gamma=0.1)
+
+    model_filename = "model_resnet" + \
+        str(config['base']) + "_lr" + str(config['lr'])
     if config['pretrained']:
         model_filename += '_pretrained'
-    
+
     avg_b_train_losses = []
     avg_c_train_losses = []
     avg_b_test_losses = []
     avg_c_test_losses = []
-    
+
     for i in range(epochs):
-        
+
         total_train_loss = 0
         b_train_loss = 0
         c_train_loss = 0
 
         model.train()
-        
+
         with tqdm(train_loader, desc='Train Progress', unit="batch") as tepoch:
             for data_dict in tepoch:
                 ims = data_dict["image"].float().to(device)
-                class_targets, box_targets = get_targets(data_dict["image"].to(device), data_dict["bbox"].to(device), data_dict["authentic"].to(device))
+                class_targets, box_targets = get_targets(data_dict["image"].to(
+                    device), data_dict["bbox"].to(device), data_dict["authentic"].to(device))
                 out_pred, out_box = model(ims)
 
                 loss_cls = class_loss(out_pred, class_targets.squeeze(2))
@@ -453,23 +470,24 @@ def train_manip(config):
 
         avg_c_train_loss = float(c_train_loss / len(train_loader))
         avg_b_train_loss = float(b_train_loss / len(train_loader))
-        
+
         avg_c_train_losses.append(avg_c_train_loss)
         avg_b_train_losses.append(avg_b_train_loss)
-        
+
         total_test_loss = 0
         b_test_loss = 0
         c_test_loss = 0
-        
+
         with torch.no_grad():
-            
+
             model.eval()
 
             with tqdm(test_loader, desc='Test Progress', unit="batch") as tepoch:
-                
+
                 for data_dict in tepoch:
                     ims = data_dict["image"].float().to(device)
-                    class_targets, box_targets = get_targets(data_dict["image"].to(device), data_dict["bbox"].to(device), data_dict["authentic"].to(device))
+                    class_targets, box_targets = get_targets(data_dict["image"].to(
+                        device), data_dict["bbox"].to(device), data_dict["authentic"].to(device))
                     out_pred, out_box = model(ims)
 
                     loss_cls = class_loss(out_pred, class_targets.squeeze(2))
@@ -480,7 +498,7 @@ def train_manip(config):
                     total_test_loss += loss.item()
                     c_test_loss += loss_cls.item()
                     b_test_loss += loss_bbox.item()
-                    
+
                 avg_c_test_loss = float(c_test_loss / len(test_loader))
                 avg_b_test_loss = float(b_test_loss / len(test_loader))
 
@@ -493,16 +511,15 @@ def train_manip(config):
             i, avg_c_train_loss, avg_b_train_loss, avg_c_test_loss, avg_b_test_loss))
 
     if device == 'cuda' and torch.cuda.device_count() > 1:
-        torch.save(model.module.state_dict(), os.path.join(MODEL_DIR, model_filename))
+        torch.save(model.module.state_dict(),
+                   os.path.join(MODEL_DIR, model_filename))
     else:
         torch.save(model.state_dict(), os.path.join(MODEL_DIR, model_filename))
-    
+
     return avg_b_train_losses, avg_c_train_losses, avg_b_test_losses, avg_c_test_losses
-    
 
 
 # In[ ]:
-
 
 loss_dict = {}
 
@@ -510,7 +527,8 @@ for base in [18, 34, 50]:
     for lr in [0.01, 0.1, 1.0]:
         for pretrained in [True, False]:
             config = {"base": base, "lr": lr, "pretrained": pretrained}
-            reg_train_losses, clf_train_losses, reg_test_losses, clf_test_losses = train_manip(config)
+            reg_train_losses, clf_train_losses, reg_test_losses, clf_test_losses = train_manip(
+                config)
             loss_dict[str(base) + '_' + str(lr) + '_' + str(pretrained)] = {
                 'reg_train_losses': reg_train_losses,
                 'clf_train_losses': clf_train_losses,
@@ -524,9 +542,6 @@ for base in [18, 34, 50]:
 
 with open("performance.json", "w") as outfile:
     json.dump(loss_dict, outfile)
-
-for key in loss_dict:
-    print(key + " Regression Loss: " + loss_dict[key][0][-1] + " Classification Loss " + loss_dict[key][1][-1])
 
 
 # In[ ]:
@@ -561,4 +576,3 @@ for key in loss_dict:
 #     verbose=1,
 #     scheduler=hyperband_scheduler
 # )
-
